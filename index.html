@@ -1,0 +1,193 @@
+<!DOCTYPE html><html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#a3dfff" />
+  <link rel="manifest" href="manifest.json" />
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <title>Sanning eller Död / Skolquiz</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(to bottom, #a3dfff, #d4f1ff);
+      color: #111;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    .hidden { display: none; }
+    .button {
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 10px;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+    input, select {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    #answerList li {
+      text-align: left;
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h1>Sanning eller Död / Skolquiz</h1>
+    <p>Skriv ditt namn:</p>
+    <input type="text" id="username" placeholder="Ditt namn" /><br><p>Vilket spel vill du spela?</p>
+<select id="gameMode">
+  <option value="sanningEllerDod">Sanning eller Död</option>
+  <option value="skolquiz">Skolquiz</option>
+</select><br>
+
+<div id="quizOptions" class="hidden">
+  <p>Välj ämne:</p>
+  <select id="subject">
+    <option value="matematik">Matematik</option>
+    <option value="svenska">Svenska</option>
+    <option value="no">NO</option>
+    <option value="so">SO</option>
+    <option value="blandat">Blandat</option>
+  </select><br>
+</div>
+
+<p>Hur många frågor vill du ha? (1–200)</p>
+<input type="number" id="questionCountInput" min="1" max="200" placeholder="Antal frågor" /><br><br>
+<button class="button" onclick="startGame()">Starta spelet</button>
+
+  </div>  <div id="gameScreen" class="hidden">
+    <h2 id="greeting"></h2>
+    <div id="questionSection">
+      <button class="button" id="sanningBtn" onclick="choose('sanning')">Sanning</button>
+      <button class="button" id="dodBtn" onclick="choose('död')">Död</button>
+      <button class="button hidden" id="nextQuizBtn" onclick="nextQuizQuestion()">Nästa fråga</button>
+    </div>
+    <h3 id="question" class="hidden"></h3>
+    <div id="answerSection" class="hidden">
+      <input type="text" id="answerInput" placeholder="Ditt svar här..." />
+      <button class="button" onclick="submitAnswer()">Skicka svar</button>
+    </div>
+    <ul id="answerList"></ul>
+  </div>  <script>
+    document.getElementById("gameMode").addEventListener("change", () => {
+      const mode = document.getElementById("gameMode").value;
+      document.getElementById("quizOptions").classList.toggle("hidden", mode !== "skolquiz");
+      document.getElementById("sanningBtn").classList.toggle("hidden", mode === "skolquiz");
+      document.getElementById("dodBtn").classList.toggle("hidden", mode === "skolquiz");
+      document.getElementById("nextQuizBtn").classList.toggle("hidden", mode !== "skolquiz");
+    });
+
+    const skolFrågor = {
+      matematik: ["Vad är 8 × 7?", "Vad är hälften av 100?", "Vad är 25 % av 200?"],
+      svenska: ["Vad är ett substantiv?", "Ge ett exempel på en synonym till 'glad'", "Vad är ett verb?"],
+      no: ["Vilken planet är närmast solen?", "Vad kallas vatten i gasform?", "Vad är fotosyntes?"],
+      so: ["Vad heter Sveriges huvudstad?", "Vad firar vi på midsommar?", "Vad är en demokrati?"],
+      blandat: [] // Fylls med alla frågor
+    };
+
+    skolFrågor.blandat = [...skolFrågor.matematik, ...skolFrågor.svenska, ...skolFrågor.no, ...skolFrågor.so];
+
+    const sanningFrågor = ["Har du någonsin ljugit?", "Vem gillar du?", "Vad är det pinsammaste du gjort?"];
+    const dodUtmaningar = ["Hoppa 10 gånger", "Sjung en sång", "Säg något baklänges"];
+
+    let playerName = "";
+    let currentQuestion = "";
+    let questionCount = 0;
+    let maxQuestions = 5;
+    let gameMode = "sanningEllerDod";
+    let subject = "";
+    let usedQuestions = [];
+
+    function startGame() {
+      const name = document.getElementById("username").value.trim();
+      const count = parseInt(document.getElementById("questionCountInput").value);
+      gameMode = document.getElementById("gameMode").value;
+      subject = document.getElementById("subject").value;
+      if (!name || isNaN(count) || count < 1 || count > 200) return alert("Ange namn och giltigt antal frågor");
+
+      playerName = name;
+      maxQuestions = count;
+      questionCount = 0;
+      usedQuestions = [];
+
+      document.getElementById("startScreen").classList.add("hidden");
+      document.getElementById("gameScreen").classList.remove("hidden");
+      document.getElementById("greeting").textContent = `Hej ${playerName}! Fråga 1 av ${maxQuestions}`;
+
+      if (gameMode === "skolquiz") {
+        nextQuizQuestion();
+      }
+    }
+
+    function choose(type) {
+      document.body.style.background = type === "sanning" ? "#ffffff" : "#000000";
+      document.body.style.color = type === "sanning" ? "#111" : "#fff";
+
+      const list = type === "sanning" ? sanningFrågor : dodUtmaningar;
+      const index = Math.floor(Math.random() * list.length);
+      currentQuestion = list[index];
+
+      document.getElementById("question").textContent = currentQuestion;
+      document.getElementById("question").classList.remove("hidden");
+      document.getElementById("answerSection").classList.remove("hidden");
+      document.getElementById("questionSection").classList.add("hidden");
+    }
+
+    function nextQuizQuestion() {
+      const list = skolFrågor[subject];
+      if (usedQuestions.length >= maxQuestions || usedQuestions.length >= list.length) return endGame();
+
+      let question;
+      do {
+        question = list[Math.floor(Math.random() * list.length)];
+      } while (usedQuestions.includes(question));
+
+      usedQuestions.push(question);
+      currentQuestion = question;
+
+      document.getElementById("question").textContent = question;
+      document.getElementById("question").classList.remove("hidden");
+      document.getElementById("answerSection").classList.remove("hidden");
+    }
+
+    function submitAnswer() {
+      const answer = document.getElementById("answerInput").value.trim();
+      if (!answer) return alert("Skriv ett svar!");
+
+      const response = `${playerName} (${currentQuestion}): ${answer}`;
+      const li = document.createElement("li");
+      li.textContent = response;
+      document.getElementById("answerList").appendChild(li);
+
+      document.getElementById("answerInput").value = "";
+      document.getElementById("answerSection").classList.add("hidden");
+
+      questionCount++;
+      if (questionCount >= maxQuestions) {
+        endGame();
+      } else {
+        document.getElementById("greeting").textContent = `Fråga ${questionCount + 1} av ${maxQuestions}`;
+        if (gameMode === "skolquiz") {
+          document.getElementById("questionSection").classList.remove("hidden");
+        } else {
+          document.getElementById("questionSection").classList.remove("hidden");
+        }
+      }
+    }
+
+    function endGame() {
+      document.getElementById("question").textContent = `Bra jobbat, ${playerName}! Du har klarat ${questionCount} frågor.`;
+      document.getElementById("answerSection").classList.add("hidden");
+      document.getElementById("questionSection").classList.add("hidden");
+    }
+  </script></body>
+</html>
