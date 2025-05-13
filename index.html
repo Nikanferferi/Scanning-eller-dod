@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="sv">
+<!DOCTYPE html>
+<html lang="sv">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -6,7 +7,7 @@
   <link rel="manifest" href="manifest.json" />
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <title>Sanning eller Död / Skolquiz</title>
+  <title>Sanning eller Död</title>
   <style>
     body {
       font-family: 'Arial', sans-serif;
@@ -26,12 +27,11 @@
       border-radius: 10px;
       font-size: 16px;
     }
-    input, select {
+    input {
       padding: 10px;
       border-radius: 8px;
       border: 1px solid #ccc;
       font-size: 16px;
-      margin-bottom: 10px;
     }
     #answerList li {
       text-align: left;
@@ -41,132 +41,135 @@
 </head>
 <body>
   <div id="startScreen">
-    <h1>Sanning eller Död / Skolquiz</h1>
+    <h1>Sanning eller Död</h1>
     <p>Skriv ditt namn:</p>
-    <input type="text" id="username" placeholder="Ditt namn" /><br><p>Vilket spel vill du spela?</p>
-<select id="gameMode">
-  <option value="sanningEllerDod">Sanning eller Död</option>
-  <option value="skolquiz">Skolquiz</option>
-</select><br>
+    <input type="text" id="username" placeholder="Ditt namn" /><br><br>
+    <p>Hur många frågor vill du ha? (1–200)</p>
+    <input type="number" id="questionCountInput" min="1" max="200" placeholder="Antal frågor" /><br><br>
+    <button class="button" onclick="startGame()">Starta spelet</button>
+  </div>
 
-<div id="quizOptions" class="hidden">
-  <p>Välj ämne:</p>
-  <select id="subject">
-    <option value="matematik">Matematik</option>
-    <option value="svenska">Svenska</option>
-    <option value="no">NO</option>
-    <option value="so">SO</option>
-    <option value="blandat">Blandat</option>
-  </select><br>
-</div>
-
-<p>Hur många frågor vill du ha? (1–200)</p>
-<input type="number" id="questionCountInput" min="1" max="200" placeholder="Antal frågor" /><br><br>
-<button class="button" onclick="startGame()">Starta spelet</button>
-
-  </div>  <div id="gameScreen" class="hidden">
+  <div id="gameScreen" class="hidden">
     <h2 id="greeting"></h2>
     <div id="questionSection">
-      <button class="button" id="sanningBtn" onclick="choose('sanning')">Sanning</button>
-      <button class="button" id="dodBtn" onclick="choose('död')">Död</button>
-      <button class="button hidden" id="nextQuizBtn" onclick="nextQuizQuestion()">Nästa fråga</button>
+      <button class="button" onclick="choose('sanning')">Sanning</button>
+      <button class="button" onclick="choose('död')">Död</button>
     </div>
     <h3 id="question" class="hidden"></h3>
     <div id="answerSection" class="hidden">
       <input type="text" id="answerInput" placeholder="Ditt svar här..." />
       <button class="button" onclick="submitAnswer()">Skicka svar</button>
     </div>
+    <div id="nextSection" class="hidden">
+      <button class="button" onclick="resetGame()">Nästa fråga</button>
+    </div>
     <ul id="answerList"></ul>
-  </div>  <script>
-    document.getElementById("gameMode").addEventListener("change", () => {
-      const mode = document.getElementById("gameMode").value;
-      document.getElementById("quizOptions").classList.toggle("hidden", mode !== "skolquiz");
-      document.getElementById("sanningBtn").classList.toggle("hidden", mode === "skolquiz");
-      document.getElementById("dodBtn").classList.toggle("hidden", mode === "skolquiz");
-      document.getElementById("nextQuizBtn").classList.toggle("hidden", mode !== "skolquiz");
-    });
+  </div>
 
-    const skolFrågor = {
-      matematik: ["Vad är 8 × 7?", "Vad är hälften av 100?", "Vad är 25 % av 200?"],
-      svenska: ["Vad är ett substantiv?", "Ge ett exempel på en synonym till 'glad'", "Vad är ett verb?"],
-      no: ["Vilken planet är närmast solen?", "Vad kallas vatten i gasform?", "Vad är fotosyntes?"],
-      so: ["Vad heter Sveriges huvudstad?", "Vad firar vi på midsommar?", "Vad är en demokrati?"],
-      blandat: [] // Fylls med alla frågor
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <script>
+    // Firebase-konfiguration
+    const firebaseConfig = {
+      apiKey: "AIzaSyA15cB5GxEtNvywnUnwTqt9_VU8pflZ6cU",
+      authDomain: "sanning-eller-dod.firebaseapp.com",
+      projectId: "sanning-eller-dod",
+      storageBucket: "sanning-eller-dod.firebasestorage.app",
+      messagingSenderId: "997234297530",
+      appId: "1:997234297530:web:32f63a33891563cbb91083",
+      measurementId: "G-MFZ8REC8B9"
     };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-    skolFrågor.blandat = [...skolFrågor.matematik, ...skolFrågor.svenska, ...skolFrågor.no, ...skolFrågor.so];
+    const sanningFrågor = [
+      "Har du någonsin ljugit för din bästa vän?",
+      "Vad är det pinsammaste du gjort i skolan?",
+      "Vem är din hemliga crush?",
+      "Vad skulle du göra med en miljon kronor?",
+      "Har du fuskat på ett prov?"
+    ];
 
-    const sanningFrågor = ["Har du någonsin ljugit?", "Vem gillar du?", "Vad är det pinsammaste du gjort?"];
-    const dodUtmaningar = ["Hoppa 10 gånger", "Sjung en sång", "Säg något baklänges"];
+    const dödUtmaningar = [
+      "Gör 10 armhävningar!",
+      "Ring någon och sjung 'Bä bä vita lamm'",
+      "Hoppa på ett ben i 30 sekunder!",
+      "Säg ett konstigt ljud i 15 sekunder!",
+      "Gör en TikTok-dans nu (på låtsas)"
+    ];
 
     let playerName = "";
     let currentQuestion = "";
     let questionCount = 0;
     let maxQuestions = 5;
-    let gameMode = "sanningEllerDod";
-    let subject = "";
-    let usedQuestions = [];
+    let blandadeSanning = [];
+    let blandadeDöd = [];
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
 
     function startGame() {
       const name = document.getElementById("username").value.trim();
-      const count = parseInt(document.getElementById("questionCountInput").value);
-      gameMode = document.getElementById("gameMode").value;
-      subject = document.getElementById("subject").value;
-      if (!name || isNaN(count) || count < 1 || count > 200) return alert("Ange namn och giltigt antal frågor");
+      const count = parseInt(document.getElementById("questionCountInput").value, 10);
+      if (!name || isNaN(count) || count < 1 || count > 200) {
+        return alert("Ange ett giltigt namn och antal frågor (1–200)");
+      }
 
       playerName = name;
       maxQuestions = count;
       questionCount = 0;
-      usedQuestions = [];
+
+      blandadeSanning = [...sanningFrågor];
+      blandadeDöd = [...dödUtmaningar];
+      shuffle(blandadeSanning);
+      shuffle(blandadeDöd);
 
       document.getElementById("startScreen").classList.add("hidden");
       document.getElementById("gameScreen").classList.remove("hidden");
       document.getElementById("greeting").textContent = `Hej ${playerName}! Fråga 1 av ${maxQuestions}`;
-
-      if (gameMode === "skolquiz") {
-        nextQuizQuestion();
-      }
     }
 
     function choose(type) {
       document.body.style.background = type === "sanning" ? "#ffffff" : "#000000";
       document.body.style.color = type === "sanning" ? "#111" : "#fff";
 
-      const list = type === "sanning" ? sanningFrågor : dodUtmaningar;
-      const index = Math.floor(Math.random() * list.length);
-      currentQuestion = list[index];
+      let fråga = "";
+      if (type === "sanning" && blandadeSanning.length > 0) {
+        fråga = blandadeSanning.shift();
+      } else if (type === "död" && blandadeDöd.length > 0) {
+        fråga = blandadeDöd.shift();
+      } else {
+        fråga = "Inga fler frågor!";
+      }
 
+      currentQuestion = fråga;
       document.getElementById("question").textContent = currentQuestion;
       document.getElementById("question").classList.remove("hidden");
       document.getElementById("answerSection").classList.remove("hidden");
       document.getElementById("questionSection").classList.add("hidden");
     }
 
-    function nextQuizQuestion() {
-      const list = skolFrågor[subject];
-      if (usedQuestions.length >= maxQuestions || usedQuestions.length >= list.length) return endGame();
-
-      let question;
-      do {
-        question = list[Math.floor(Math.random() * list.length)];
-      } while (usedQuestions.includes(question));
-
-      usedQuestions.push(question);
-      currentQuestion = question;
-
-      document.getElementById("question").textContent = question;
-      document.getElementById("question").classList.remove("hidden");
-      document.getElementById("answerSection").classList.remove("hidden");
-    }
-
     function submitAnswer() {
       const answer = document.getElementById("answerInput").value.trim();
       if (!answer) return alert("Skriv ett svar!");
 
-      const response = `${playerName} (${currentQuestion}): ${answer}`;
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+
+      const response = `🎤 ${playerName} (${currentQuestion}): ${answer}`;
       const li = document.createElement("li");
       li.textContent = response;
       document.getElementById("answerList").appendChild(li);
+
+      const answerData = {
+        namn: playerName,
+        fråga: currentQuestion,
+        svar: answer,
+        tid: Date.now()
+      };
+      db.ref("svar").push(answerData);
 
       document.getElementById("answerInput").value = "";
       document.getElementById("answerSection").classList.add("hidden");
@@ -175,19 +178,59 @@
       if (questionCount >= maxQuestions) {
         endGame();
       } else {
+        document.getElementById("nextSection").classList.remove("hidden");
         document.getElementById("greeting").textContent = `Fråga ${questionCount + 1} av ${maxQuestions}`;
-        if (gameMode === "skolquiz") {
-          document.getElementById("questionSection").classList.remove("hidden");
-        } else {
-          document.getElementById("questionSection").classList.remove("hidden");
-        }
       }
     }
 
+    function resetGame() {
+      document.body.style.background = "linear-gradient(to bottom, #a3dfff, #d4f1ff)";
+      document.body.style.color = "#111";
+      document.getElementById("question").classList.add("hidden");
+      document.getElementById("nextSection").classList.add("hidden");
+      document.getElementById("questionSection").classList.remove("hidden");
+    }
+
     function endGame() {
-      document.getElementById("question").textContent = `Bra jobbat, ${playerName}! Du har klarat ${questionCount} frågor.`;
+      document.getElementById("question").textContent = `🎉 Bra jobbat, ${playerName}! Du har svarat på ${maxQuestions} frågor.`;
       document.getElementById("answerSection").classList.add("hidden");
       document.getElementById("questionSection").classList.add("hidden");
+      document.getElementById("nextSection").classList.add("hidden");
     }
-  </script></body>
+  </script>
+
+  <script>
+    // PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(reg => console.log('Service Worker registrerad:', reg))
+          .catch(err => console.log('Service Worker-fel:', err));
+      });
+
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+
+        const installBtn = document.createElement('button');
+        installBtn.textContent = 'Installera appen';
+        installBtn.className = 'button';
+        installBtn.style.position = 'fixed';
+        installBtn.style.bottom = '20px';
+        installBtn.style.left = '50%';
+        installBtn.style.transform = 'translateX(-50%)';
+        document.body.appendChild(installBtn);
+
+        installBtn.addEventListener('click', () => {
+          installBtn.remove();
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then(choiceResult => {
+            console.log('Användarens val:', choiceResult.outcome);
+          });
+        });
+      });
+    }
+  </script>
+</body>
 </html>
