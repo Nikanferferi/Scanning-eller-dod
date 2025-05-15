@@ -4,9 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#a3dfff" />
-  <link rel="manifest" href="manifest.json" />
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <title>Sanning eller Död</title>
   <style>
     body {
@@ -66,7 +63,11 @@
     <ul id="answerList"></ul>
   </div>
 
+  <!-- JS-bibliotek -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+
   <script>
     // Firebase-konfiguration
     const firebaseConfig = {
@@ -94,7 +95,7 @@
       "Ring någon och sjung 'Bä bä vita lamm'",
       "Hoppa på ett ben i 30 sekunder!",
       "Säg ett konstigt ljud i 15 sekunder!",
-      "Gör en TikTok-dans nu (på låtsas)"
+      "Gör en TikTok-dans nu "
     ];
 
     let playerName = "";
@@ -174,6 +175,8 @@
       document.getElementById("answerInput").value = "";
       document.getElementById("answerSection").classList.add("hidden");
 
+      aiRespond(); // 👈 Låt AI:n svara direkt efter användaren
+
       questionCount++;
       if (questionCount >= maxQuestions) {
         endGame();
@@ -197,39 +200,31 @@
       document.getElementById("questionSection").classList.add("hidden");
       document.getElementById("nextSection").classList.add("hidden");
     }
-  </script>
 
-  <script>
-    // PWA
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-          .then(reg => console.log('Service Worker registrerad:', reg))
-          .catch(err => console.log('Service Worker-fel:', err));
-      });
+    // 🧠 Enkel AI-kompis
+    const aiAnswers = [
+      "Det var pinsamt, men jag erkänner det.",
+      "Jag skulle köpa en massa godis!",
+      "Hmm... jag berättar inte det 😅",
+      "Jag vet inte, kanske bygga ett trädkoja-slott?",
+      "Jag skulle säga sanningen... eller skulle jag?"
+    ];
 
-      let deferredPrompt;
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
+    function aiRespond() {
+      const aiName = "AI Kompis 🤖";
+      const answer = aiAnswers[Math.floor(Math.random() * aiAnswers.length)];
+      const response = `🎤 ${aiName} (${currentQuestion}): ${answer}`;
+      const li = document.createElement("li");
+      li.textContent = response;
+      document.getElementById("answerList").appendChild(li);
 
-        const installBtn = document.createElement('button');
-        installBtn.textContent = 'Installera appen';
-        installBtn.className = 'button';
-        installBtn.style.position = 'fixed';
-        installBtn.style.bottom = '20px';
-        installBtn.style.left = '50%';
-        installBtn.style.transform = 'translateX(-50%)';
-        document.body.appendChild(installBtn);
-
-        installBtn.addEventListener('click', () => {
-          installBtn.remove();
-          deferredPrompt.prompt();
-          deferredPrompt.userChoice.then(choiceResult => {
-            console.log('Användarens val:', choiceResult.outcome);
-          });
-        });
-      });
+      const answerData = {
+        namn: aiName,
+        fråga: currentQuestion,
+        svar: answer,
+        tid: Date.now()
+      };
+      db.ref("svar").push(answerData);
     }
   </script>
 </body>
