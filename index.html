@@ -1,231 +1,82 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#a3dfff" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sanning eller Död</title>
   <style>
     body {
-      font-family: 'Arial', sans-serif;
-      background: linear-gradient(to bottom, #a3dfff, #d4f1ff);
-      color: #111;
-      margin: 0;
-      padding: 20px;
-      text-align: center;
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #fefae0;
     }
-    .hidden { display: none; }
-    .button {
-      background-color: #007BFF;
-      color: white;
+    h1 {
+      color: #283618;
+    }
+    .card {
+      background: white;
+      padding: 2rem;
+      margin: 1rem 0;
+      border-radius: 1rem;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      margin-top: 1rem;
+      padding: 1rem;
+      font-size: 1rem;
       border: none;
-      padding: 10px 20px;
-      margin: 10px;
-      border-radius: 10px;
-      font-size: 16px;
+      border-radius: 0.5rem;
+      background-color: #606c38;
+      color: white;
+      cursor: pointer;
     }
-    input {
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 16px;
+    button:hover {
+      background-color: #283618;
     }
-    #answerList li {
-      text-align: left;
-      margin: 5px 0;
+    select, input {
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      width: 100%;
+      max-width: 300px;
     }
   </style>
 </head>
 <body>
-  <div id="startScreen">
-    <h1>Sanning eller Död</h1>
-    <p>Skriv ditt namn:</p>
-    <input type="text" id="username" placeholder="Ditt namn" /><br><br>
-    <p>Hur många frågor vill du ha? (1–200)</p>
-    <input type="number" id="questionCountInput" min="1" max="200" placeholder="Antal frågor" /><br><br>
-    <button class="button" onclick="startGame()">Starta spelet</button>
+  <h1>Sanning eller Död 🎲</h1>
+
+  <div class="card" id="setup">
+    <label for="name">Ditt namn:</label><br>
+    <input type="text" id="name"><br>
+
+    <label for="subject">Välj ämne:</label><br>
+    <select id="subject">
+      <option value="bild">Bild</option>
+      <option value="slöjd">Slöjd</option>
+      <option value="historia">Historia</option>
+      <option value="biologi">Biologi</option>
+      <option value="matematik">Matematik</option>
+    </select><br>
+
+    <label for="count">Antal frågor (1–200):</label><br>
+    <input type="number" id="count" min="1" max="200" value="5"><br>
+
+    <button onclick="startGame()">Starta spelet</button>
   </div>
 
-  <div id="gameScreen" class="hidden">
-    <h2 id="greeting"></h2>
-    <div id="questionSection">
-      <button class="button" onclick="choose('sanning')">Sanning</button>
-      <button class="button" onclick="choose('död')">Död</button>
-    </div>
-    <h3 id="question" class="hidden"></h3>
-    <div id="answerSection" class="hidden">
-      <input type="text" id="answerInput" placeholder="Ditt svar här..." />
-      <button class="button" onclick="submitAnswer()">Skicka svar</button>
-    </div>
-    <div id="nextSection" class="hidden">
-      <button class="button" onclick="resetGame()">Nästa fråga</button>
-    </div>
-    <ul id="answerList"></ul>
+  <div class="card" id="game" style="display:none;">
+    <p id="questionText"></p>
+    <button onclick="showAnswer('sanning')">Sanning</button>
+    <button onclick="showAnswer('dod')">Död</button>
   </div>
 
-  <!-- JS-bibliotek -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <div class="card" id="result" style="display:none;">
+    <p id="answerText"></p>
+    <button onclick="nextQuestion()">Nästa fråga</button>
+  </div>
 
   <script>
-    // Firebase-konfiguration
-    const firebaseConfig = {
-      apiKey: "AIzaSyA15cB5GxEtNvywnUnwTqt9_VU8pflZ6cU",
-      authDomain: "sanning-eller-dod.firebaseapp.com",
-      projectId: "sanning-eller-dod",
-      storageBucket: "sanning-eller-dod.firebasestorage.app",
-      messagingSenderId: "997234297530",
-      appId: "1:997234297530:web:32f63a33891563cbb91083",
-      measurementId: "G-MFZ8REC8B9"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    const sanningFrågor = [
-      "Har du någonsin ljugit för din bästa vän?",
-      "Vad är det pinsammaste du gjort i skolan?",
-      "Vem är din hemliga crush?",
-      "Vad skulle du göra med en miljon kronor?",
-      "Har du fuskat på ett prov?"
-    ];
-
-    const dödUtmaningar = [
-      "Gör 10 armhävningar!",
-      "Ring någon och sjung 'Bä bä vita lamm'",
-      "Hoppa på ett ben i 30 sekunder!",
-      "Säg ett konstigt ljud i 15 sekunder!",
-      "Gör en TikTok-dans nu "
-    ];
-
-    let playerName = "";
-    let currentQuestion = "";
-    let questionCount = 0;
-    let maxQuestions = 5;
-    let blandadeSanning = [];
-    let blandadeDöd = [];
-
-    function shuffle(array) {
-      for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-      }
-    }
-
-    function startGame() {
-      const name = document.getElementById("username").value.trim();
-      const count = parseInt(document.getElementById("questionCountInput").value, 10);
-      if (!name || isNaN(count) || count < 1 || count > 200) {
-        return alert("Ange ett giltigt namn och antal frågor (1–200)");
-      }
-
-      playerName = name;
-      maxQuestions = count;
-      questionCount = 0;
-
-      blandadeSanning = [...sanningFrågor];
-      blandadeDöd = [...dödUtmaningar];
-      shuffle(blandadeSanning);
-      shuffle(blandadeDöd);
-
-      document.getElementById("startScreen").classList.add("hidden");
-      document.getElementById("gameScreen").classList.remove("hidden");
-      document.getElementById("greeting").textContent = `Hej ${playerName}! Fråga 1 av ${maxQuestions}`;
-    }
-
-    function choose(type) {
-      document.body.style.background = type === "sanning" ? "#ffffff" : "#000000";
-      document.body.style.color = type === "sanning" ? "#111" : "#fff";
-
-      let fråga = "";
-      if (type === "sanning" && blandadeSanning.length > 0) {
-        fråga = blandadeSanning.shift();
-      } else if (type === "död" && blandadeDöd.length > 0) {
-        fråga = blandadeDöd.shift();
-      } else {
-        fråga = "Inga fler frågor!";
-      }
-
-      currentQuestion = fråga;
-      document.getElementById("question").textContent = currentQuestion;
-      document.getElementById("question").classList.remove("hidden");
-      document.getElementById("answerSection").classList.remove("hidden");
-      document.getElementById("questionSection").classList.add("hidden");
-    }
-
-    function submitAnswer() {
-      const answer = document.getElementById("answerInput").value.trim();
-      if (!answer) return alert("Skriv ett svar!");
-
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-
-      const response = `🎤 ${playerName} (${currentQuestion}): ${answer}`;
-      const li = document.createElement("li");
-      li.textContent = response;
-      document.getElementById("answerList").appendChild(li);
-
-      const answerData = {
-        namn: playerName,
-        fråga: currentQuestion,
-        svar: answer,
-        tid: Date.now()
-      };
-      db.ref("svar").push(answerData);
-
-      document.getElementById("answerInput").value = "";
-      document.getElementById("answerSection").classList.add("hidden");
-
-      aiRespond(); // 👈 Låt AI:n svara direkt efter användaren
-
-      questionCount++;
-      if (questionCount >= maxQuestions) {
-        endGame();
-      } else {
-        document.getElementById("nextSection").classList.remove("hidden");
-        document.getElementById("greeting").textContent = `Fråga ${questionCount + 1} av ${maxQuestions}`;
-      }
-    }
-
-    function resetGame() {
-      document.body.style.background = "linear-gradient(to bottom, #a3dfff, #d4f1ff)";
-      document.body.style.color = "#111";
-      document.getElementById("question").classList.add("hidden");
-      document.getElementById("nextSection").classList.add("hidden");
-      document.getElementById("questionSection").classList.remove("hidden");
-    }
-
-    function endGame() {
-      document.getElementById("question").textContent = `🎉 Bra jobbat, ${playerName}! Du har svarat på ${maxQuestions} frågor.`;
-      document.getElementById("answerSection").classList.add("hidden");
-      document.getElementById("questionSection").classList.add("hidden");
-      document.getElementById("nextSection").classList.add("hidden");
-    }
-
-    // 🧠 Enkel AI-kompis
-    const aiAnswers = [
-      "Det var pinsamt, men jag erkänner det.",
-      "Jag skulle köpa en massa godis!",
-      "Hmm... jag berättar inte det 😅",
-      "Jag vet inte, kanske bygga ett trädkoja-slott?",
-      "Jag skulle säga sanningen... eller skulle jag?"
-    ];
-
-    function aiRespond() {
-      const aiName = "AI Kompis 🤖";
-      const answer = aiAnswers[Math.floor(Math.random() * aiAnswers.length)];
-      const response = `🎤 ${aiName} (${currentQuestion}): ${answer}`;
-      const li = document.createElement("li");
-      li.textContent = response;
-      document.getElementById("answerList").appendChild(li);
-
-      const answerData = {
-        namn: aiName,
-        fråga: currentQuestion,
-        svar: answer,
-        tid: Date.now()
-      };
-      db.ref("svar").push(answerData);
-    }
-  </script>
-</body>
-</html>
+    const questions = {
+      bild: {
+        sanning: [
+          "Vilken färg gillar du minst att rita med?",
+          "Har du någonsin fuskat med
