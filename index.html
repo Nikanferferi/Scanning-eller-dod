@@ -2,81 +2,172 @@
 <html lang="sv">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sanning eller Död</title>
+  <title>NOKportalen Spel</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      padding: 2rem;
-      background-color: #fefae0;
+      background: #eef;
+      padding: 20px;
     }
-    h1 {
-      color: #283618;
-    }
-    .card {
+    .container {
+      max-width: 600px;
+      margin: auto;
       background: white;
-      padding: 2rem;
-      margin: 1rem 0;
-      border-radius: 1rem;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 15px #aaa;
     }
-    button {
-      margin-top: 1rem;
-      padding: 1rem;
-      font-size: 1rem;
-      border: none;
-      border-radius: 0.5rem;
-      background-color: #606c38;
-      color: white;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #283618;
-    }
-    select, input {
-      padding: 0.5rem;
-      margin: 0.5rem 0;
+    input, select, button {
+      display: block;
+      margin: 10px 0;
+      padding: 10px;
       width: 100%;
-      max-width: 300px;
+    }
+    .admin-section {
+      margin-top: 50px;
+      border-top: 2px solid #ccc;
+      padding-top: 20px;
     }
   </style>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 </head>
 <body>
-  <h1>Sanning eller Död 🎲</h1>
+  <div class="container">
+    <h1>NOKportalen</h1>
+    
+    <!-- Inloggning -->
+    <input type="text" id="username" placeholder="Ange användarnamn" />
+    <button onclick="login()">Logga in</button>
 
-  <div class="card" id="setup">
-    <label for="name">Ditt namn:</label><br>
-    <input type="text" id="name"><br>
+    <!-- Elevspel -->
+    <div id="main" style="display:none;">
+      <h2 id="greeting"></h2>
+      <label for="subject">Välj ämne:</label>
+      <select id="subject"></select>
+      <button onclick="startGame()">Starta spel</button>
+      <div id="game" style="margin-top:20px;"></div>
+    </div>
 
-    <label for="subject">Välj ämne:</label><br>
-    <select id="subject">
-      <option value="bild">Bild</option>
-      <option value="slöjd">Slöjd</option>
-      <option value="historia">Historia</option>
-      <option value="biologi">Biologi</option>
-      <option value="matematik">Matematik</option>
-    </select><br>
+    <!-- Adminpanel -->
+    <div class="admin-section">
+      <h2>Adminpanel</h2>
+      <input type="password" id="adminPass" placeholder="Adminlösenord">
+      <button onclick="authAdmin()">Logga in som admin</button>
 
-    <label for="count">Antal frågor (1–200):</label><br>
-    <input type="number" id="count" min="1" max="200" value="5"><br>
-
-    <button onclick="startGame()">Starta spelet</button>
-  </div>
-
-  <div class="card" id="game" style="display:none;">
-    <p id="questionText"></p>
-    <button onclick="showAnswer('sanning')">Sanning</button>
-    <button onclick="showAnswer('dod')">Död</button>
-  </div>
-
-  <div class="card" id="result" style="display:none;">
-    <p id="answerText"></p>
-    <button onclick="nextQuestion()">Nästa fråga</button>
+      <div id="adminArea" style="display:none;">
+        <h3>Lägg till ny fråga</h3>
+        <input type="text" id="adminSubject" placeholder="Ämne">
+        <input type="text" id="adminQuestion" placeholder="Frågetext">
+        <input type="text" id="adminCorrect" placeholder="Rätt svar">
+        <input type="text" id="adminOptions" placeholder="Alternativ (kommatecken)">
+        <button onclick="addQuestion()">Lägg till fråga</button>
+      </div>
+    </div>
   </div>
 
   <script>
-    const questions = {
-      bild: {
-        sanning: [
-          "Vilken färg gillar du minst att rita med?",
-          "Har du någonsin fuskat med
+    // Firebase-konfiguration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDzbKJEa6o9j7_yY--sVNvSW3cidTvV9-0",
+      authDomain: "nokportale-2.firebaseapp.com",
+      projectId: "nokportale-2",
+      storageBucket: "nokportale-2.appspot.com",
+      messagingSenderId: "1004027163198",
+      appId: "1:1004027163198:web:f9efae5286d60e4e1e976f",
+      measurementId: "G-SM3DJHBR62"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    let currentUser = "";
+    let questions = [];
+    let currentIndex = 0;
+
+    function login() {
+      const username = document.getElementById("username").value;
+      if (!username) return alert("Ange ett användarnamn!");
+      currentUser = username;
+      document.getElementById("greeting").innerText = "Hej " + username + "!";
+      document.getElementById("main").style.display = "block";
+      loadSubjects();
+    }
+
+    function loadSubjects() {
+      db.collection("questions").get().then(snapshot => {
+        const subjects = new Set();
+        snapshot.forEach(doc => {
+          subjects.add(doc.data().subject);
+        });
+        const select = document.getElementById("subject");
+        select.innerHTML = "";
+        subjects.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = opt.textContent = s;
+          select.appendChild(opt);
+        });
+      });
+    }
+
+    function startGame() {
+      const subject = document.getElementById("subject").value;
+      db.collection("questions").where("subject", "==", subject).get().then(snapshot => {
+        questions = snapshot.docs.map(doc => doc.data());
+        currentIndex = 0;
+        showQuestion();
+      });
+    }
+
+    function showQuestion() {
+      if (currentIndex >= questions.length) {
+        document.getElementById("game").innerHTML = "Spelet är slut!";
+        return;
+      }
+      const q = questions[currentIndex];
+      let html = "<h3>" + q.text + "</h3>";
+      q.options.forEach(opt => {
+        html += `<button onclick="answer('${opt}', '${q.correct}')">${opt}</button>`;
+      });
+      document.getElementById("game").innerHTML = html;
+    }
+
+    function answer(selected, correct) {
+      const result = {
+        user: currentUser,
+        subject: document.getElementById("subject").value,
+        question: questions[currentIndex].text,
+        correct: selected === correct,
+        time: new Date()
+      };
+      db.collection("results").add(result);
+      currentIndex++;
+      showQuestion();
+    }
+
+    function authAdmin() {
+      const pass = document.getElementById("adminPass").value;
+      if (pass === "admin123") {
+        document.getElementById("adminArea").style.display = "block";
+      } else {
+        alert("Fel lösenord");
+      }
+    }
+
+    function addQuestion() {
+      const subject = document.getElementById("adminSubject").value;
+      const text = document.getElementById("adminQuestion").value;
+      const correct = document.getElementById("adminCorrect").value;
+      const options = document.getElementById("adminOptions").value.split(",");
+      db.collection("questions").add({
+        subject, text, correct, options
+      }).then(() => {
+        alert("Frågan har lagts till!");
+      });
+    }
+  </script>
+</body>
+</html>
