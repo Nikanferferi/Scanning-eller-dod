@@ -86,6 +86,9 @@
     <button onclick="buyUpgrade()">⚡ Uppgradera (50 kr)</button>
     <button onclick="expandGarden()">🏡 Bygg ut (100 kr)</button>
     <button onclick="toggleSound()">🔊 Ljud</button>
+    <button onclick="exportAllSaves()">📤 Exportera ALLA profiler</button>
+    <input type="file" id="importFile" accept=".json" onchange="importAllSaves(event)" style="display:none;" />
+    <button onclick="document.getElementById('importFile').click()">📥 Importera profiler</button>
   </div>
 
   <div id="game"></div>
@@ -233,6 +236,65 @@
     function switchProfile() {
       const name = usernameInput.value.trim();
       if (name) loadProfile(name);
+    }
+
+    // === EXPORT/IMPORT ALLA PROFILER ===
+    function getAllSaves() {
+      let saves = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        let key = localStorage.key(i);
+        if (key.includes("_money") || key.includes("_sold") || key.includes("_upgraded")) {
+          let profileName = key.split("_")[0];
+          if (!saves[profileName]) {
+            saves[profileName] = {
+              money: +localStorage.getItem(profileName + "_money") || 0,
+              sold: +localStorage.getItem(profileName + "_sold") || 0,
+              upgraded: localStorage.getItem(profileName + "_upgraded") === "true"
+            };
+          }
+        }
+      }
+      return saves;
+    }
+
+    function loadAllSaves(saves) {
+      Object.keys(saves).forEach(profileName => {
+        let save = saves[profileName];
+        localStorage.setItem(profileName + "_money", save.money);
+        localStorage.setItem(profileName + "_sold", save.sold);
+        localStorage.setItem(profileName + "_upgraded", save.upgraded);
+      });
+      loadProfile(profile);
+    }
+
+    function exportAllSaves() {
+      const data = JSON.stringify(getAllSaves());
+      const blob = new Blob([data], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `garden_profiles.json`;
+      a.click();
+
+      URL.revokeObjectURL(url);
+    }
+
+    function importAllSaves(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = JSON.parse(e.target.result);
+          loadAllSaves(data);
+          alert("Profiler importerade!");
+        } catch (err) {
+          alert("Felaktig fil!");
+        }
+      };
+      reader.readAsText(file);
     }
 
     // Initiera spelet
